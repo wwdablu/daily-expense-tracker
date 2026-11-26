@@ -41,6 +41,7 @@ import com.wwdablu.dailyexpense.ui.DeleteCategoryDialog
 import com.wwdablu.dailyexpense.ui.ExpenseDialog
 import com.wwdablu.dailyexpense.ui.ExpensesScreen
 import com.wwdablu.dailyexpense.ui.MainViewModel
+import com.wwdablu.dailyexpense.ui.SummaryPeriod
 import com.wwdablu.dailyexpense.ui.SummaryScreen
 
 class MainActivity : ComponentActivity() {
@@ -61,7 +62,7 @@ fun AppTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = scheme, content = content)
 }
 
-private enum class Tab(val title: String) { Expenses("Daily Expenses"), Summary("Monthly Summary"), Types("Expense Types") }
+private enum class Tab(val title: String) { Expenses("Daily Expenses"), Summary("Summary"), Types("Expense Types") }
 
 /** State for the add/edit expense dialog: null = closed. */
 private sealed interface ExpenseEdit {
@@ -75,7 +76,9 @@ fun App(vm: MainViewModel = viewModel()) {
     val day by vm.selectedDay.collectAsStateWithLifecycle()
     val categories by vm.categories.collectAsStateWithLifecycle()
     val expenses by vm.dayExpenses.collectAsStateWithLifecycle()
-    val monthTotals by vm.monthTotals.collectAsStateWithLifecycle()
+    val summaryPeriod by vm.summaryPeriod.collectAsStateWithLifecycle()
+    val summaryTotals by vm.summaryTotals.collectAsStateWithLifecycle()
+    val summarySums by vm.summarySums.collectAsStateWithLifecycle()
     val monthSums by vm.monthSums.collectAsStateWithLifecycle()
     val budget by vm.budget.collectAsStateWithLifecycle()
 
@@ -120,12 +123,14 @@ fun App(vm: MainViewModel = viewModel()) {
             )
             Tab.Summary -> SummaryScreen(
                 day = day,
-                sums = monthSums,
-                totals = monthTotals,
+                sums = summarySums,
+                totals = summaryTotals,
+                period = summaryPeriod,
+                onPeriodChange = vm::setSummaryPeriod,
                 budget = budget,
                 onSetBudget = vm::setBudget,
-                onPrevMonth = { vm.shiftMonth(-1) },
-                onNextMonth = { vm.shiftMonth(1) },
+                onPrev = { if (summaryPeriod == SummaryPeriod.Month) vm.shiftMonth(-1) else vm.shiftYear(-1) },
+                onNext = { if (summaryPeriod == SummaryPeriod.Month) vm.shiftMonth(1) else vm.shiftYear(1) },
                 contentPadding = padding,
             )
             Tab.Types -> CategoriesScreen(

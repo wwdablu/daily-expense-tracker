@@ -23,6 +23,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,12 +50,15 @@ fun SummaryScreen(
     day: LocalDate,
     sums: PeriodTotals,
     totals: List<CategoryTotal>,
+    period: SummaryPeriod,
+    onPeriodChange: (SummaryPeriod) -> Unit,
     budget: Long?,
     onSetBudget: (Long?) -> Unit,
-    onPrevMonth: () -> Unit,
-    onNextMonth: () -> Unit,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
     contentPadding: PaddingValues,
 ) {
+    val isMonth = period == SummaryPeriod.Month
     var editBudget by remember { mutableStateOf(false) }
     val spent = sums.expense
 
@@ -62,15 +68,30 @@ fun SummaryScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPrevMonth) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous month") }
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                SegmentedButton(
+                    selected = isMonth,
+                    onClick = { onPeriodChange(SummaryPeriod.Month) },
+                    shape = SegmentedButtonDefaults.itemShape(0, 2),
+                ) { Text("Monthly") }
+                SegmentedButton(
+                    selected = !isMonth,
+                    onClick = { onPeriodChange(SummaryPeriod.Year) },
+                    shape = SegmentedButtonDefaults.itemShape(1, 2),
+                ) { Text("Yearly") }
+            }
+        }
+        item {
+            val unit = if (isMonth) "month" else "year"
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onPrev) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous $unit") }
                 Text(
-                    day.format(monthFormatter),
+                    if (isMonth) day.format(monthFormatter) else day.year.toString(),
                     Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleMedium,
                 )
-                IconButton(onClick = onNextMonth) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next month") }
+                IconButton(onClick = onNext) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next $unit") }
             }
         }
 
@@ -91,8 +112,8 @@ fun SummaryScreen(
             }
         }
 
-        // Monthly budget
-        item {
+        // Monthly budget (the budget is per month, so it is only shown in the monthly view)
+        if (isMonth) item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

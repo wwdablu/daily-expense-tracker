@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -40,14 +41,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun monthRange(day: LocalDate) =
         day.withDayOfMonth(1).toEpochDay() to day.withDayOfMonth(day.lengthOfMonth()).toEpochDay()
 
-    /** Spending per expense type for the month containing the selected day. */
-    val monthTotals: StateFlow<List<CategoryTotal>> = _selectedDay
-        .map { monthRange(it) }
-        .distinctUntilChanged()
+    private fun yearRange(day: LocalDate) =
+        day.withDayOfYear(1).toEpochDay() to day.withDayOfYear(day.lengthOfYear()).toEpochDay()
+
+    /** Whether the Summary tab shows the selected day's month or its whole year. */
+    private val _summaryPeriod = MutableStateFlow(SummaryPeriod.Month)
+    val summaryPeriod: StateFlow<SummaryPeriod> = _summaryPeriod.asStateFlow()
+    fun setSummaryPeriod(period: SummaryPeriod) { _summaryPeriod.value = period }
+
+    private val summaryRange = combine(_selectedDay, _summaryPeriod) { day, period ->
+        if (period == SummaryPeriod.Month) monthRange(day) else yearRange(day)
+    }.distinctUntilChanged()
+
+    /** Spending per expense type for the Summary tab's month or year. */
+    val summaryTotals: StateFlow<List<CategoryTotal>> = summaryRange
         .flatMapLatest { (from, to) -> repo.observeSpendingByCategory(from, to) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Earned / spent totals for the month containing the selected day. */
+    /** Earned / spent totals for the Summary tab's month or year. */
+    val summarySums: StateFlow<PeriodTotals> = summaryRange
+        .flatMapLatest { (from, to) -> repo.observePeriodTotals(from, to) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PeriodTotals(0, 0))
+
+    /** Earned / spent totals for the month containing the selected day (drives the budget). */
     val monthSums: StateFlow<PeriodTotals> = _selectedDay
         .map { monthRange(it) }
         .distinctUntilChanged()
@@ -62,6 +78,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun selectDay(day: LocalDate) { _selectedDay.value = day }
     fun shiftDay(days: Long) { _selectedDay.value = _selectedDay.value.plusDays(days) }
     fun shiftMonth(months: Long) { _selectedDay.value = _selectedDay.value.plusMonths(months) }
+    fun shiftYear(years: Long) { _selectedDay.value = _selectedDay.value.plusYears(years) }
 
     fun saveExpense(expense: Expense) = viewModelScope.launch { repo.saveExpense(expense) }
     fun deleteExpense(expense: Expense) = viewModelScope.launch { repo.deleteExpense(expense) }
@@ -76,3 +93,5 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteCategory(category: Category) = viewModelScope.launch { repo.deleteCategory(category) }
 }
+
+enum class SummaryPeriod { Month, Year }
