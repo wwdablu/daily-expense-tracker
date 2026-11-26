@@ -1,4 +1,4 @@
-package com.dailyexpense.tracker.data
+package com.wwdablu.dailyexpense.data
 
 import android.content.Context
 import androidx.room.Database

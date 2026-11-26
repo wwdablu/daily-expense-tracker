@@ -1,4 +1,4 @@
-package com.dailyexpense.tracker.ui
+package com.wwdablu.dailyexpense.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,8 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.dailyexpense.tracker.data.CategoryTotal
-import com.dailyexpense.tracker.data.PeriodTotals
+import com.wwdablu.dailyexpense.data.CategoryTotal
+import com.wwdablu.dailyexpense.data.PeriodTotals
 import java.time.LocalDate
 
 @Composable

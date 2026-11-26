@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.dailyexpense.tracker"
+    namespace = "com.wwdablu.dailyexpense"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.dailyexpense.tracker"
+        applicationId = "com.wwdablu.dailyexpense"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

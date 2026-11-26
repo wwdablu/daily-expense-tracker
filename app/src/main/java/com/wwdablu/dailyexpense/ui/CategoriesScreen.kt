@@ -1,4 +1,4 @@
-package com.dailyexpense.tracker.ui
+package com.wwdablu.dailyexpense.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -44,7 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.dailyexpense.tracker.data.Category
+import com.wwdablu.dailyexpense.data.Category
 
 /** Lists expense types with edit and remove actions. Adding is via the screen's FAB. */
 @Composable

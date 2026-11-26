@@ -1,4 +1,4 @@
-package com.dailyexpense.tracker.data
+package com.wwdablu.dailyexpense.data
 
 class ExpenseRepository(private val db: AppDatabase) {
     private val categories = db.categoryDao()

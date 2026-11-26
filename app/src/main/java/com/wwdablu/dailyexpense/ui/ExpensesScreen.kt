@@ -1,4 +1,4 @@
-package com.dailyexpense.tracker.ui
+package com.wwdablu.dailyexpense.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,9 +56,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.dailyexpense.tracker.data.Category
-import com.dailyexpense.tracker.data.Expense
-import com.dailyexpense.tracker.data.ExpenseWithCategory
+import com.wwdablu.dailyexpense.data.Category
+import com.wwdablu.dailyexpense.data.Expense
+import com.wwdablu.dailyexpense.data.ExpenseWithCategory
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset

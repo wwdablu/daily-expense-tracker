@@ -1,4 +1,4 @@
-package com.dailyexpense.tracker
+package com.wwdablu.dailyexpense
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -33,15 +33,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.dailyexpense.tracker.data.Category
-import com.dailyexpense.tracker.data.ExpenseWithCategory
-import com.dailyexpense.tracker.ui.CategoriesScreen
-import com.dailyexpense.tracker.ui.CategoryDialog
-import com.dailyexpense.tracker.ui.DeleteCategoryDialog
-import com.dailyexpense.tracker.ui.ExpenseDialog
-import com.dailyexpense.tracker.ui.ExpensesScreen
-import com.dailyexpense.tracker.ui.MainViewModel
-import com.dailyexpense.tracker.ui.SummaryScreen
+import com.wwdablu.dailyexpense.data.Category
+import com.wwdablu.dailyexpense.data.ExpenseWithCategory
+import com.wwdablu.dailyexpense.ui.CategoriesScreen
+import com.wwdablu.dailyexpense.ui.CategoryDialog
+import com.wwdablu.dailyexpense.ui.DeleteCategoryDialog
+import com.wwdablu.dailyexpense.ui.ExpenseDialog
+import com.wwdablu.dailyexpense.ui.ExpensesScreen
+import com.wwdablu.dailyexpense.ui.MainViewModel
+import com.wwdablu.dailyexpense.ui.SummaryScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
