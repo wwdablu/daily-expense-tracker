@@ -34,11 +34,11 @@ data class Report(
             generatedAt.format(DateTimeFormatter.ofPattern("d MMM yyyy 'at' h:mm a"))
 
     companion object {
-        /** Suggested file name, e.g. DailyExpenses_2026-11.pdf or DailyExpenses_2026.pdf. */
-        fun fileName(appName: String, day: LocalDate, isYear: Boolean): String {
+        /** Suggested file name, e.g. DailyExpenses_2026-11.pdf or DailyExpenses_2026.csv. */
+        fun fileName(appName: String, day: LocalDate, isYear: Boolean, extension: String = "pdf"): String {
             val base = appName.replace(" ", "")
             val period = if (isYear) "${day.year}" else day.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-            return "${base}_$period.pdf"
+            return "${base}_$period.$extension"
         }
 
         val ENTRY_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy")

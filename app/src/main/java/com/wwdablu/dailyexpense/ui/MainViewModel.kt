@@ -3,6 +3,7 @@ package com.wwdablu.dailyexpense.ui
 import android.app.Application
 import android.net.Uri
 import com.wwdablu.dailyexpense.R
+import com.wwdablu.dailyexpense.export.CsvWriter
 import com.wwdablu.dailyexpense.export.PdfWriter
 import com.wwdablu.dailyexpense.export.Report
 import kotlinx.coroutines.Dispatchers
@@ -24,8 +25,16 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import com.wwdablu.dailyexpense.data.BudgetStore
+import com.wwdablu.dailyexpense.data.AppSettings
+import com.wwdablu.dailyexpense.reminder.DailyReminder
+import com.wwdablu.dailyexpense.widget.TodayWidget
 import com.wwdablu.dailyexpense.data.PeriodTotals
+import com.wwdablu.dailyexpense.data.PendingEntry
+import com.wwdablu.dailyexpense.sms.TypeGuess
+import com.wwdablu.dailyexpense.insights.Insight
+import com.wwdablu.dailyexpense.insights.InsightInputs
+import com.wwdablu.dailyexpense.insights.InsightRanges
+import com.wwdablu.dailyexpense.insights.InsightsCalculator
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -69,6 +78,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         .flatMapLatest { (from, to) -> repo.observePeriodTotals(from, to) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PeriodTotals(0, 0))
 
+    /** Insights for the Summary tab's month or year, recomputed whenever entries change. */
+    val insights: StateFlow<List<Insight>> = combine(_selectedDay, _summaryPeriod, AppSettings.get(app).budget) { day, period, budget ->
+        Triple(InsightRanges.of(day, period == SummaryPeriod.Year, LocalDate.now()), budget, Unit)
+    }.distinctUntilChanged().flatMapLatest { (r, budget, _) ->
+        val from = r.start.toEpochDay(); val to = r.end.toEpochDay()
+        val pFrom = r.prevStart.toEpochDay(); val pTo = r.prevEnd.toEpochDay()
+        combine(
+            repo.observePeriodTotals(from, to),
+            repo.observePeriodTotals(pFrom, pTo),
+            repo.observeSpendingByCategory(from, to),
+            repo.observeSpendingByCategory(pFrom, pTo),
+            repo.observeDailySpending(from, to),
+        ) { cur, prev, byType, prevByType, daily ->
+            InsightsCalculator.compute(InsightInputs(r, cur.expense, prev.expense, byType, prevByType, daily, budget))
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** Earned / spent totals for the month containing the selected day (drives the budget). */
     val monthSums: StateFlow<PeriodTotals> = _selectedDay
         .map { monthRange(it) }
@@ -76,10 +102,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         .flatMapLatest { (from, to) -> repo.observePeriodTotals(from, to) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PeriodTotals(0, 0))
 
-    private val budgetStore = BudgetStore(app)
+    private val settings = AppSettings.get(app)
     /** Maximum monthly budget in paise, or null if not set. */
-    val budget: StateFlow<Long?> = budgetStore.budget
-    fun setBudget(minor: Long?) = budgetStore.set(minor)
+    val budget: StateFlow<Long?> = settings.budget
+    fun setBudget(minor: Long?) {
+        settings.setBudget(minor)
+        TodayWidget.refresh(getApplication())
+    }
+
+    /** Debits/credits found in bank SMS, waiting to be added or dismissed. */
+    private val pendingDao = AppDatabase.get(app).pendingDao()
+    val pending: StateFlow<List<PendingEntry>> = pendingDao.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    fun dismissPending(id: Long) = viewModelScope.launch { pendingDao.delete(id) }
+
+    /** A new entry pre-filled from a detected SMS, with the type guessed from the merchant. */
+    fun draftFrom(p: PendingEntry): Expense {
+        val guess = TypeGuess.typeName(p.merchant.orEmpty())
+        val category = categories.value.firstOrNull { it.name.equals(guess, ignoreCase = true) }
+        return Expense(
+            amountMinor = p.amountMinor,
+            categoryId = category?.id,
+            note = p.merchant.orEmpty(),
+            epochDay = p.epochDay,
+            isIncome = p.isIncome,
+        )
+    }
+
+    val smsDetection: StateFlow<Boolean> = settings.smsDetection
+    fun setSmsDetection(on: Boolean) = settings.setSmsDetection(on)
+
+    val reminderEnabled: StateFlow<Boolean> = settings.reminderEnabled
+    val reminderMinutes: StateFlow<Int> = settings.reminderMinutes
+    fun setReminderEnabled(on: Boolean) {
+        settings.setReminderEnabled(on)
+        DailyReminder.schedule(getApplication())
+    }
+    fun setReminderMinutes(minutes: Int) {
+        settings.setReminderMinutes(minutes)
+        DailyReminder.schedule(getApplication())
+    }
 
     fun selectDay(day: LocalDate) { _selectedDay.value = day }
     fun shiftDay(days: Long) { _selectedDay.value = _selectedDay.value.plusDays(days) }
@@ -88,25 +150,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val appName = app.getString(R.string.app_name)
 
-    fun exportFileName(isYear: Boolean) = Report.fileName(appName, _selectedDay.value, isYear)
+    fun exportFileName(isYear: Boolean, csv: Boolean = false) =
+        Report.fileName(appName, _selectedDay.value, isYear, if (csv) "csv" else "pdf")
 
     /**
-     * Writes the month or year containing the selected day to [uri] as a PDF.
+     * Writes the month or year containing the selected day to [uri] as a PDF, or as CSV if [csv].
      * [onDone] gets null on success or an error message.
      */
-    fun export(isYear: Boolean, uri: Uri, onDone: (String?) -> Unit) = viewModelScope.launch {
+    fun export(isYear: Boolean, uri: Uri, csv: Boolean = false, onDone: (String?) -> Unit) = viewModelScope.launch {
         val error = runCatching {
             withContext(Dispatchers.IO) {
                 val report = Report.build(repo, appName, _selectedDay.value, isYear, budget.value)
                 val resolver = getApplication<Application>().contentResolver
-                resolver.openOutputStream(uri, "wt")!!.use { out -> PdfWriter.write(report, out) }
+                resolver.openOutputStream(uri, "wt")!!.use { out ->
+                    if (csv) CsvWriter.write(report, out) else PdfWriter.write(report, out)
+                }
             }
         }.exceptionOrNull()
         onDone(error?.let { it.message ?: it.javaClass.simpleName })
     }
 
-    fun saveExpense(expense: Expense) = viewModelScope.launch { repo.saveExpense(expense) }
-    fun deleteExpense(expense: Expense) = viewModelScope.launch { repo.deleteExpense(expense) }
+    fun saveExpense(expense: Expense) = viewModelScope.launch {
+        repo.saveExpense(expense)
+        TodayWidget.refresh(getApplication())
+    }
+    fun deleteExpense(expense: Expense) = viewModelScope.launch {
+        repo.deleteExpense(expense)
+        TodayWidget.refresh(getApplication())
+    }
 
     fun saveCategory(category: Category, onResult: (String?) -> Unit) = viewModelScope.launch {
         onResult(repo.saveCategory(category))

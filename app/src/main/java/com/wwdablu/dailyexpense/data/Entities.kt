@@ -49,6 +49,24 @@ data class Expense(
     @ColumnInfo(defaultValue = "0") val isIncome: Boolean = false,
 )
 
+/**
+ * A debit or credit detected in a bank SMS, waiting for the user to add or dismiss it.
+ * Only the parsed details are kept, not the message text. [fingerprint] stops the same SMS
+ * from being suggested twice.
+ */
+@Entity(tableName = "pending_entries", indices = [Index(value = ["fingerprint"], unique = true)])
+data class PendingEntry(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val amountMinor: Long,
+    val isIncome: Boolean,
+    val merchant: String?,
+    val epochDay: Long,
+    /** SMS sender ID, e.g. "VM-HDFCBK". */
+    val sender: String,
+    val fingerprint: String,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
 /** Earned and spent totals for a date range, in minor units (paise). */
 data class PeriodTotals(val income: Long, val expense: Long)
 

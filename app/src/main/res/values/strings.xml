@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Daily Expenses</string>
+    <string name="widget_description">Today\'s spending and budget left, with a quick add button</string>
 </resources>

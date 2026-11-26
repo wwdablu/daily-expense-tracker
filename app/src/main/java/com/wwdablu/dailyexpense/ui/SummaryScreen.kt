@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,6 +44,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.wwdablu.dailyexpense.data.CategoryTotal
 import com.wwdablu.dailyexpense.data.PeriodTotals
+import com.wwdablu.dailyexpense.insights.Insight
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Lightbulb
 import java.time.LocalDate
 
 @Composable
@@ -52,6 +57,7 @@ fun SummaryScreen(
     totals: List<CategoryTotal>,
     period: SummaryPeriod,
     onPeriodChange: (SummaryPeriod) -> Unit,
+    insights: List<Insight>,
     budget: Long?,
     onSetBudget: (Long?) -> Unit,
     onPrev: () -> Unit,
@@ -111,6 +117,8 @@ fun SummaryScreen(
                 }
             }
         }
+
+        if (insights.isNotEmpty()) item { InsightsCard(insights) }
 
         // Monthly budget (the budget is per month, so it is only shown in the monthly view)
         if (isMonth) item {
@@ -244,4 +252,26 @@ fun BudgetDialog(current: Long?, onSave: (Long?) -> Unit, onDismiss: () -> Unit)
             }
         },
     )
+}
+
+/** Short observations about the period: change vs last period, biggest movers, highest day, pace. */
+@Composable
+private fun InsightsCard(insights: List<Insight>) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Insights", style = MaterialTheme.typography.titleMedium)
+            insights.forEach { insight ->
+                val (icon, tint) = when (insight.tone) {
+                    Insight.Tone.Bad -> Icons.AutoMirrored.Filled.TrendingUp to MaterialTheme.colorScheme.error
+                    Insight.Tone.Good -> Icons.AutoMirrored.Filled.TrendingDown to IncomeGreen
+                    Insight.Tone.Neutral -> Icons.Filled.Lightbulb to MaterialTheme.colorScheme.onSurfaceVariant
+                }
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(icon, null, Modifier.padding(top = 2.dp).size(18.dp), tint = tint)
+                    Spacer(Modifier.width(10.dp))
+                    Text(insight.text, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
 }

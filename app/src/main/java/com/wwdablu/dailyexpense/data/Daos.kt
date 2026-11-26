@@ -3,8 +3,10 @@ package com.wwdablu.dailyexpense.data
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.wwdablu.dailyexpense.insights.DayTotal
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -29,6 +31,19 @@ interface CategoryDao {
 
     @Delete
     suspend fun delete(category: Category)
+}
+
+@Dao
+interface PendingDao {
+    @Query("SELECT * FROM pending_entries ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<PendingEntry>>
+
+    /** Returns the new row id, or -1 if this SMS was already recorded. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(entry: PendingEntry): Long
+
+    @Query("DELETE FROM pending_entries WHERE id = :id")
+    suspend fun delete(id: Long)
 }
 
 @Dao
@@ -73,6 +88,16 @@ interface ExpenseDao {
         """
     )
     fun observePeriodTotals(fromDay: Long, toDay: Long): Flow<PeriodTotals>
+
+    /** Total spent (expenses only) on each day that has any, for the insights. */
+    @Query(
+        """
+        SELECT epochDay, SUM(amountMinor) AS total FROM expenses
+        WHERE isIncome = 0 AND epochDay BETWEEN :fromDay AND :toDay
+        GROUP BY epochDay
+        """
+    )
+    fun observeDailySpending(fromDay: Long, toDay: Long): Flow<List<DayTotal>>
 
     @Insert
     suspend fun insert(expense: Expense): Long

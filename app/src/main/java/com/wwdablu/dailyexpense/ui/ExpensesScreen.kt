@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -61,6 +62,8 @@ import androidx.compose.ui.unit.dp
 import com.wwdablu.dailyexpense.data.Category
 import com.wwdablu.dailyexpense.data.Expense
 import com.wwdablu.dailyexpense.data.ExpenseWithCategory
+import com.wwdablu.dailyexpense.data.PendingEntry
+import androidx.compose.material.icons.filled.Sms
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -73,6 +76,9 @@ fun ExpensesScreen(
     onNextDay: () -> Unit,
     onPickDay: (LocalDate) -> Unit,
     onEdit: (ExpenseWithCategory) -> Unit,
+    pending: List<PendingEntry>,
+    onAddPending: (PendingEntry) -> Unit,
+    onDismissPending: (PendingEntry) -> Unit,
     budget: Long?,
     monthSpent: Long,
     contentPadding: PaddingValues,
@@ -162,6 +168,10 @@ fun ExpensesScreen(
             }
         }
 
+        if (pending.isNotEmpty()) {
+            PendingCard(pending, onAddPending, onDismissPending)
+        }
+
         if (expenses.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
@@ -244,15 +254,20 @@ fun DayPickerDialog(initial: LocalDate, onDismiss: () -> Unit, onPicked: (LocalD
 fun ExpenseDialog(
     existing: ExpenseWithCategory?,
     defaultDay: LocalDate,
+    /** Pre-filled values for a new entry (e.g. from a detected SMS). Ignored when editing. */
+    draft: Expense? = null,
     categories: List<Category>,
     onSave: (Expense) -> Unit,
     onDelete: (Expense) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val base = existing?.expense
+    val base = existing?.expense ?: draft
     var amount by rememberSaveable { mutableStateOf(base?.let { minorToInput(it.amountMinor) } ?: "") }
     var note by rememberSaveable { mutableStateOf(base?.note ?: "") }
-    var categoryId by rememberSaveable { mutableStateOf(base?.categoryId ?: categories.firstOrNull()?.id) }
+    // A draft with no guessed type falls back to the first type, like a blank new entry.
+    var categoryId by rememberSaveable {
+        mutableStateOf(if (existing != null) base?.categoryId else base?.categoryId ?: categories.firstOrNull()?.id)
+    }
     var isIncome by rememberSaveable { mutableStateOf(base?.isIncome ?: false) }
     var epochDay by rememberSaveable { mutableStateOf(base?.epochDay ?: defaultDay.toEpochDay()) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -367,5 +382,46 @@ fun ExpenseDialog(
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/** Debits/credits found in bank SMS, each with Add and Dismiss. */
+@Composable
+private fun PendingCard(
+    pending: List<PendingEntry>,
+    onAdd: (PendingEntry) -> Unit,
+    onDismiss: (PendingEntry) -> Unit,
+) {
+    Card(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Sms, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Detected from SMS (${pending.size})", style = MaterialTheme.typography.titleSmall)
+            }
+            pending.take(3).forEach { p ->
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            (if (p.isIncome) "+ " else "− ") + formatMoney(p.amountMinor),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (p.isIncome) IncomeGreen else MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                        Text(
+                            listOfNotNull(p.merchant, formatDay(LocalDate.ofEpochDay(p.epochDay))).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    TextButton(onClick = { onDismiss(p) }) { Text("Dismiss") }
+                    TextButton(onClick = { onAdd(p) }) { Text("Add") }
+                }
+            }
+            if (pending.size > 3) {
+                Text("+ ${pending.size - 3} more", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
     }
 }
