@@ -14,8 +14,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.rememberCoroutineScope
 import com.wwdablu.dailyexpense.export.PDF_MIME_TYPE
-import com.wwdablu.dailyexpense.ui.ExportDialog
-import com.wwdablu.dailyexpense.ui.monthFormatter
 import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -106,11 +104,11 @@ fun App(vm: MainViewModel = viewModel()) {
     var categoryError by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<Pair<Category, Int>?>(null) }
 
-    // Export: dialog, then the system "save as" picker, then a snackbar to open the file.
+    // Export: the download button opens the system "save as" picker for the month or year shown
+    // in Summary, then a snackbar offers to open the PDF.
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    var exportDialogOpen by remember { mutableStateOf(false) }
     var pendingExportYear by rememberSaveable { mutableStateOf(false) }
     fun onFileChosen(uri: Uri?) {
         if (uri == null) return
@@ -142,7 +140,15 @@ fun App(vm: MainViewModel = viewModel()) {
                 title = { Text(current.title) },
                 actions = {
                     if (current == Tab.Summary) {
-                        IconButton(onClick = { exportDialogOpen = true }) { Icon(Icons.Filled.FileDownload, "Export report") }
+                        IconButton(onClick = {
+                            pendingExportYear = summaryPeriod == SummaryPeriod.Year
+                            savePdf.launch(vm.exportFileName(pendingExportYear))
+                        }) {
+                            Icon(
+                                Icons.Filled.FileDownload,
+                                if (summaryPeriod == SummaryPeriod.Year) "Download yearly PDF" else "Download monthly PDF",
+                            )
+                        }
                     }
                 },
             )
@@ -219,20 +225,6 @@ fun App(vm: MainViewModel = viewModel()) {
                 }
             },
             onDismiss = { categoryDialogOpen = false },
-        )
-    }
-
-    if (exportDialogOpen) {
-        ExportDialog(
-            monthLabel = day.format(monthFormatter),
-            yearLabel = day.year.toString(),
-            initialYear = summaryPeriod == SummaryPeriod.Year,
-            onExport = { isYear ->
-                exportDialogOpen = false
-                pendingExportYear = isYear
-                savePdf.launch(vm.exportFileName(isYear))
-            },
-            onDismiss = { exportDialogOpen = false },
         )
     }
 
