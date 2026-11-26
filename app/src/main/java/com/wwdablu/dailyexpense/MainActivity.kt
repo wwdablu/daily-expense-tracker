@@ -18,6 +18,8 @@ import com.wwdablu.dailyexpense.notify.AppIntents
 import com.wwdablu.dailyexpense.notify.Notifications
 import com.wwdablu.dailyexpense.reminder.DailyReminder
 import com.wwdablu.dailyexpense.ui.SettingsScreen
+import com.wwdablu.dailyexpense.ui.DownloadDialog
+import com.wwdablu.dailyexpense.ui.monthFormatter
 import com.wwdablu.dailyexpense.ui.SectionTitle
 import com.wwdablu.dailyexpense.ui.SettingRow
 import com.wwdablu.dailyexpense.ui.SwitchRow
@@ -40,7 +42,6 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.rememberCoroutineScope
 import com.wwdablu.dailyexpense.export.CSV_MIME_TYPE
 import com.wwdablu.dailyexpense.export.PDF_MIME_TYPE
-import androidx.compose.material.icons.filled.TableView
 import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -239,6 +240,7 @@ fun App(
     }
 
     var menuOpen by remember { mutableStateOf(false) }
+    var downloadDialogOpen by remember { mutableStateOf(false) }
     val current = Tab.entries[tab]
     Scaffold(
         topBar = {
@@ -253,13 +255,10 @@ fun App(
                 },
                 actions = {
                     if (!showSettings && current == Tab.Summary) {
-                        IconButton(onClick = {
-                            pendingExportYear = summaryPeriod == SummaryPeriod.Year
-                            savePdf.launch(vm.exportFileName(pendingExportYear))
-                        }) {
+                        IconButton(onClick = { downloadDialogOpen = true }) {
                             Icon(
                                 Icons.Filled.FileDownload,
-                                if (summaryPeriod == SummaryPeriod.Year) "Download yearly PDF" else "Download monthly PDF",
+                                if (summaryPeriod == SummaryPeriod.Year) "Download yearly report" else "Download monthly report",
                             )
                         }
                     }
@@ -267,17 +266,6 @@ fun App(
                         Box {
                             IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, "More options") }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                if (current == Tab.Summary) {
-                                    DropdownMenuItem(
-                                        text = { Text(if (summaryPeriod == SummaryPeriod.Year) "Export year as CSV" else "Export month as CSV") },
-                                        leadingIcon = { Icon(Icons.Filled.TableView, null) },
-                                        onClick = {
-                                            menuOpen = false
-                                            pendingExportYear = summaryPeriod == SummaryPeriod.Year
-                                            saveCsv.launch(vm.exportFileName(pendingExportYear, csv = true))
-                                        },
-                                    )
-                                }
                                 DropdownMenuItem(
                                     text = { Text("Settings") },
                                     leadingIcon = { Icon(Icons.Filled.Settings, null) },
@@ -397,6 +385,19 @@ fun App(
                 }
             },
             onDismiss = { categoryDialogOpen = false },
+        )
+    }
+
+    if (downloadDialogOpen) {
+        DownloadDialog(
+            periodLabel = if (summaryPeriod == SummaryPeriod.Year) day.year.toString() else day.format(monthFormatter),
+            onPick = { csv ->
+                downloadDialogOpen = false
+                pendingExportYear = summaryPeriod == SummaryPeriod.Year
+                val name = vm.exportFileName(pendingExportYear, csv)
+                if (csv) saveCsv.launch(name) else savePdf.launch(name)
+            },
+            onDismiss = { downloadDialogOpen = false },
         )
     }
 
