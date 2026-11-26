@@ -8,6 +8,8 @@ class ExpenseRepository(private val db: AppDatabase) {
     fun observeExpensesForDay(epochDay: Long) = expenses.observeForDay(epochDay)
     fun observeSpendingByCategory(fromDay: Long, toDay: Long) = expenses.observeTotalsByCategory(fromDay, toDay, income = false)
     fun observePeriodTotals(fromDay: Long, toDay: Long) = expenses.observePeriodTotals(fromDay, toDay)
+    fun observeEarningsByCategory(fromDay: Long, toDay: Long) = expenses.observeTotalsByCategory(fromDay, toDay, income = true)
+    suspend fun entriesBetween(fromDay: Long, toDay: Long) = expenses.entriesBetween(fromDay, toDay)
 
     /** Returns an error message, or null on success. */
     suspend fun saveCategory(category: Category): String? {

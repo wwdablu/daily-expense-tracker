@@ -1,6 +1,22 @@
 package com.wwdablu.dailyexpense
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.rememberCoroutineScope
+import com.wwdablu.dailyexpense.export.ExportFormat
+import com.wwdablu.dailyexpense.ui.ExportDialog
+import com.wwdablu.dailyexpense.ui.monthFormatter
+import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -90,9 +106,53 @@ fun App(vm: MainViewModel = viewModel()) {
     var categoryError by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<Pair<Category, Int>?>(null) }
 
+    // Export: dialog, then the system "save as" picker, then a snackbar to open the file.
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+    var exportDialogOpen by remember { mutableStateOf(false) }
+    var pendingExportYear by rememberSaveable { mutableStateOf(false) }
+    fun onFileChosen(uri: Uri?, format: ExportFormat) {
+        if (uri == null) return
+        vm.export(pendingExportYear, format, uri) { error ->
+            scope.launch {
+                if (error != null) {
+                    snackbar.showSnackbar("Export failed: $error")
+                } else {
+                    val result = snackbar.showSnackbar(
+                        "${format.label} report saved", actionLabel = "Open", duration = SnackbarDuration.Long,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        val open = Intent(Intent.ACTION_VIEW).setDataAndType(uri, format.mimeType)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        try { context.startActivity(open) } catch (_: ActivityNotFoundException) {
+                            snackbar.showSnackbar("No app installed to open ${format.label} files")
+                        }
+                    }
+                }
+            }
+        }
+    }
+    val saveExcel = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(ExportFormat.Excel.mimeType)) {
+        onFileChosen(it, ExportFormat.Excel)
+    }
+    val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(ExportFormat.Pdf.mimeType)) {
+        onFileChosen(it, ExportFormat.Pdf)
+    }
+
     val current = Tab.entries[tab]
     Scaffold(
-        topBar = { CenterAlignedTopAppBar(title = { Text(current.title) }) },
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text(current.title) },
+                actions = {
+                    if (current == Tab.Summary) {
+                        IconButton(onClick = { exportDialogOpen = true }) { Icon(Icons.Filled.FileDownload, "Export report") }
+                    }
+                },
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             if (current != Tab.Summary) {
                 FloatingActionButton(onClick = {
@@ -164,6 +224,21 @@ fun App(vm: MainViewModel = viewModel()) {
                 }
             },
             onDismiss = { categoryDialogOpen = false },
+        )
+    }
+
+    if (exportDialogOpen) {
+        ExportDialog(
+            monthLabel = day.format(monthFormatter),
+            yearLabel = day.year.toString(),
+            initialYear = summaryPeriod == SummaryPeriod.Year,
+            onExport = { isYear, format ->
+                exportDialogOpen = false
+                pendingExportYear = isYear
+                val name = vm.exportFileName(isYear, format)
+                if (format == ExportFormat.Excel) saveExcel.launch(name) else savePdf.launch(name)
+            },
+            onDismiss = { exportDialogOpen = false },
         )
     }
 

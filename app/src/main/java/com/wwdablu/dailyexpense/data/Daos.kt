@@ -45,6 +45,16 @@ interface ExpenseDao {
 
     @Query(
         """
+        SELECT e.*, c.name AS categoryName, c.color AS categoryColor, c.icon AS categoryIcon
+        FROM expenses e LEFT JOIN categories c ON e.categoryId = c.id
+        WHERE e.epochDay BETWEEN :fromDay AND :toDay
+        ORDER BY e.epochDay, e.createdAt
+        """
+    )
+    suspend fun entriesBetween(fromDay: Long, toDay: Long): List<ExpenseWithCategory>
+
+    @Query(
+        """
         SELECT e.categoryId AS categoryId, c.name AS categoryName, c.color AS categoryColor, c.icon AS categoryIcon,
                SUM(e.amountMinor) AS total
         FROM expenses e LEFT JOIN categories c ON e.categoryId = c.id

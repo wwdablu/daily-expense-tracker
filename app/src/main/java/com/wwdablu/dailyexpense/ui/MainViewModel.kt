@@ -1,6 +1,14 @@
 package com.wwdablu.dailyexpense.ui
 
 import android.app.Application
+import android.net.Uri
+import com.wwdablu.dailyexpense.R
+import com.wwdablu.dailyexpense.export.ExportFormat
+import com.wwdablu.dailyexpense.export.PdfWriter
+import com.wwdablu.dailyexpense.export.Report
+import com.wwdablu.dailyexpense.export.XlsxWriter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wwdablu.dailyexpense.data.AppDatabase
@@ -79,6 +87,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun shiftDay(days: Long) { _selectedDay.value = _selectedDay.value.plusDays(days) }
     fun shiftMonth(months: Long) { _selectedDay.value = _selectedDay.value.plusMonths(months) }
     fun shiftYear(years: Long) { _selectedDay.value = _selectedDay.value.plusYears(years) }
+
+    private val appName = app.getString(R.string.app_name)
+
+    fun exportFileName(isYear: Boolean, format: ExportFormat) =
+        Report.fileName(appName, _selectedDay.value, isYear, format)
+
+    /**
+     * Writes the month or year containing the selected day to [uri] as Excel or PDF.
+     * [onDone] gets null on success or an error message.
+     */
+    fun export(isYear: Boolean, format: ExportFormat, uri: Uri, onDone: (String?) -> Unit) = viewModelScope.launch {
+        val error = runCatching {
+            withContext(Dispatchers.IO) {
+                val report = Report.build(repo, appName, _selectedDay.value, isYear, budget.value)
+                val resolver = getApplication<Application>().contentResolver
+                resolver.openOutputStream(uri, "wt")!!.use { out ->
+                    when (format) {
+                        ExportFormat.Excel -> XlsxWriter.write(report, out)
+                        ExportFormat.Pdf -> PdfWriter.write(report, out)
+                    }
+                }
+            }
+        }.exceptionOrNull()
+        onDone(error?.let { it.message ?: it.javaClass.simpleName })
+    }
 
     fun saveExpense(expense: Expense) = viewModelScope.launch { repo.saveExpense(expense) }
     fun deleteExpense(expense: Expense) = viewModelScope.launch { repo.deleteExpense(expense) }
