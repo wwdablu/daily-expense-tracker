@@ -31,8 +31,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
@@ -100,7 +102,7 @@ fun ExpensesScreen(
             Column(Modifier.padding(16.dp)) {
                 Row {
                     Column(Modifier.weight(1f)) {
-                        Text("Spent", style = MaterialTheme.typography.labelLarge)
+                        Text("Total expense", style = MaterialTheme.typography.labelLarge)
                         Text(formatMoney(spent), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     }
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
@@ -114,13 +116,47 @@ fun ExpensesScreen(
                     }
                 }
                 if (budget != null) {
-                    val left = budget - monthSpent
+                    // Daily limit = monthly budget spread evenly over the days of this month.
+                    val dailyLimit = budget / day.lengthOfMonth()
+                    val leftToday = dailyLimit - spent
+                    val overToday = leftToday < 0
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                    Row {
+                        Column(Modifier.weight(1f)) {
+                            Text("Daily limit", style = MaterialTheme.typography.labelLarge)
+                            Text(formatMoney(dailyLimit), style = MaterialTheme.typography.titleLarge)
+                        }
+                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                            Text(
+                                if (overToday) "Over limit by" else "Remaining",
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            Text(
+                                formatMoney(if (overToday) -leftToday else leftToday),
+                                style = MaterialTheme.typography.titleLarge,
+                                color = if (overToday) MaterialTheme.colorScheme.error else IncomeGreen,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    val usedFraction = if (dailyLimit == 0L) 1f else spent.toFloat() / dailyLimit
+                    LinearProgressIndicator(
+                        progress = { usedFraction.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().height(6.dp),
+                        color = when {
+                            overToday -> MaterialTheme.colorScheme.error
+                            usedFraction >= 0.8f -> Color(0xFFF9A825)
+                            else -> IncomeGreen
+                        },
+                        drawStopIndicator = {},
+                    )
+                    val leftMonth = budget - monthSpent
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        if (left >= 0) "Budget left this month: ${formatMoney(left)}"
-                        else "Over monthly budget by ${formatMoney(-left)}",
+                        if (leftMonth >= 0) "Budget left this month: ${formatMoney(leftMonth)}"
+                        else "Over monthly budget by ${formatMoney(-leftMonth)}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (left >= 0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                        color = if (leftMonth >= 0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
                     )
                 }
             }
