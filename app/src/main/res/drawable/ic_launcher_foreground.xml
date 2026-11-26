@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Wallet with a coin -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M32,40h44a4,4 0,0 1,4 4v24a4,4 0,0 1,-4 4h-44a4,4 0,0 1,-4 -4v-24a4,4 0,0 1,4 -4z"/>
+    <path android:fillColor="#A5D6A7"
+        android:pathData="M64,50h16v12h-16a6,6 0,0 1,0 -12z"/>
+    <path android:fillColor="#2E7D32"
+        android:pathData="M66,56m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0"/>
+</vector>
