@@ -9,10 +9,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-enum class ExportFormat(val extension: String, val mimeType: String, val label: String) {
-    Excel("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Excel"),
-    Pdf("pdf", "application/pdf", "PDF"),
-}
+const val PDF_MIME_TYPE = "application/pdf"
 
 /** Everything an exported report contains, for one month or one year. */
 data class Report(
@@ -37,11 +34,11 @@ data class Report(
             generatedAt.format(DateTimeFormatter.ofPattern("d MMM yyyy 'at' h:mm a"))
 
     companion object {
-        /** Suggested file name, e.g. DailyExpenses_2026-11.pdf or DailyExpenses_2026.xlsx. */
-        fun fileName(appName: String, day: LocalDate, isYear: Boolean, format: ExportFormat): String {
+        /** Suggested file name, e.g. DailyExpenses_2026-11.pdf or DailyExpenses_2026.pdf. */
+        fun fileName(appName: String, day: LocalDate, isYear: Boolean): String {
             val base = appName.replace(" ", "")
             val period = if (isYear) "${day.year}" else day.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-            return "${base}_$period.${format.extension}"
+            return "${base}_$period.pdf"
         }
 
         val ENTRY_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy")

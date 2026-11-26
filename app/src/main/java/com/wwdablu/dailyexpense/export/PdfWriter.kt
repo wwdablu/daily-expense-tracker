@@ -14,9 +14,10 @@ import java.time.LocalDate
 
 /**
  * Writes a [Report] as an A4 PDF: title, period, totals, spending and earnings by type, then
- * every entry. Long reports flow onto more pages; each page's footer says the app generated it.
+ * every entry. Long reports flow onto more pages. Each page's footer says the app generated
+ * the report and shows "Page X of N".
  */
-class PdfWriter private constructor(private val report: Report) {
+class PdfWriter private constructor(private val report: Report, private val totalPages: Int) {
 
     private val pageWidth = 595   // A4 in PostScript points
     private val pageHeight = 842
@@ -58,7 +59,7 @@ class PdfWriter private constructor(private val report: Report) {
         val footerY = pageHeight - 28f
         c.drawLine(margin, footerY - 14f, contentRight, footerY - 14f, linePaint)
         c.drawText(report.generatedNote, margin, footerY, notePaint)
-        val pageText = "Page $pageNumber"
+        val pageText = "Page $pageNumber of $totalPages"
         c.drawText(pageText, contentRight - notePaint.measureText(pageText), footerY, notePaint)
         doc.finishPage(p)
     }
@@ -70,15 +71,14 @@ class PdfWriter private constructor(private val report: Report) {
     private fun textRight(s: String, right: Float, p: TextPaint) = canvas.drawText(s, right - p.measureText(s), y, p)
     private fun fit(s: String, width: Float, p: TextPaint) = TextUtils.ellipsize(s, p, width, TextUtils.TruncateAt.END).toString()
 
-    private fun write(out: OutputStream) {
+    /** Draws the whole report; writes it to [out] if given. Returns the number of pages. */
+    private fun render(out: OutputStream?): Int {
         newPage()
         y += 20f
         text(report.title, margin, titlePaint)
         y += 20f
         text("Period: ${report.periodLabel}", margin, boldPaint)
-        y += 15f
-        text(report.generatedNote, margin, notePaint)
-        y += 28f
+        y += 30f
 
         // Totals
         heading("Totals")
@@ -99,8 +99,9 @@ class PdfWriter private constructor(private val report: Report) {
 
         page?.let { finishPage(it) }
         page = null
-        doc.writeTo(out)
+        out?.let { doc.writeTo(it) }
         doc.close()
+        return pageNumber
     }
 
     private fun signed(minor: Long) = (if (minor < 0) "− " else "") + formatMoney(kotlin.math.abs(minor))
@@ -181,6 +182,11 @@ class PdfWriter private constructor(private val report: Report) {
     }
 
     companion object {
-        fun write(report: Report, out: OutputStream) = PdfWriter(report).write(out)
+        fun write(report: Report, out: OutputStream) {
+            // A page's footer is drawn before later pages exist, so lay the report out once
+            // to count the pages, then render it for real with "Page X of N".
+            val pages = PdfWriter(report, totalPages = 0).render(out = null)
+            PdfWriter(report, totalPages = pages).render(out)
+        }
     }
 }

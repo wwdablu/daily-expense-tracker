@@ -13,7 +13,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.rememberCoroutineScope
-import com.wwdablu.dailyexpense.export.ExportFormat
+import com.wwdablu.dailyexpense.export.PDF_MIME_TYPE
 import com.wwdablu.dailyexpense.ui.ExportDialog
 import com.wwdablu.dailyexpense.ui.monthFormatter
 import kotlinx.coroutines.launch
@@ -112,33 +112,28 @@ fun App(vm: MainViewModel = viewModel()) {
     val snackbar = remember { SnackbarHostState() }
     var exportDialogOpen by remember { mutableStateOf(false) }
     var pendingExportYear by rememberSaveable { mutableStateOf(false) }
-    fun onFileChosen(uri: Uri?, format: ExportFormat) {
+    fun onFileChosen(uri: Uri?) {
         if (uri == null) return
-        vm.export(pendingExportYear, format, uri) { error ->
+        vm.export(pendingExportYear, uri) { error ->
             scope.launch {
                 if (error != null) {
                     snackbar.showSnackbar("Export failed: $error")
                 } else {
                     val result = snackbar.showSnackbar(
-                        "${format.label} report saved", actionLabel = "Open", duration = SnackbarDuration.Long,
+                        "PDF report saved", actionLabel = "Open", duration = SnackbarDuration.Long,
                     )
                     if (result == SnackbarResult.ActionPerformed) {
-                        val open = Intent(Intent.ACTION_VIEW).setDataAndType(uri, format.mimeType)
+                        val open = Intent(Intent.ACTION_VIEW).setDataAndType(uri, PDF_MIME_TYPE)
                             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         try { context.startActivity(open) } catch (_: ActivityNotFoundException) {
-                            snackbar.showSnackbar("No app installed to open ${format.label} files")
+                            snackbar.showSnackbar("No app installed to open PDF files")
                         }
                     }
                 }
             }
         }
     }
-    val saveExcel = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(ExportFormat.Excel.mimeType)) {
-        onFileChosen(it, ExportFormat.Excel)
-    }
-    val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(ExportFormat.Pdf.mimeType)) {
-        onFileChosen(it, ExportFormat.Pdf)
-    }
+    val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(PDF_MIME_TYPE)) { onFileChosen(it) }
 
     val current = Tab.entries[tab]
     Scaffold(
@@ -232,11 +227,10 @@ fun App(vm: MainViewModel = viewModel()) {
             monthLabel = day.format(monthFormatter),
             yearLabel = day.year.toString(),
             initialYear = summaryPeriod == SummaryPeriod.Year,
-            onExport = { isYear, format ->
+            onExport = { isYear ->
                 exportDialogOpen = false
                 pendingExportYear = isYear
-                val name = vm.exportFileName(isYear, format)
-                if (format == ExportFormat.Excel) saveExcel.launch(name) else savePdf.launch(name)
+                savePdf.launch(vm.exportFileName(isYear))
             },
             onDismiss = { exportDialogOpen = false },
         )
