@@ -1,4 +1,4 @@
-package com.dailyexpense.tracker.ui
+package com.wwdablu.dailyexpense.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box

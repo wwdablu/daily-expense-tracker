@@ -1,4 +1,4 @@
-package com.dailyexpense.tracker.data
+package com.wwdablu.dailyexpense.data
 
 import androidx.room.Dao
 import androidx.room.Delete

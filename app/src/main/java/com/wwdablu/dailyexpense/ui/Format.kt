@@ -1,4 +1,4 @@
-package com.dailyexpense.tracker.ui
+package com.wwdablu.dailyexpense.ui
 
 import java.math.BigDecimal
 import java.text.NumberFormat
