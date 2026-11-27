@@ -45,6 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.wwdablu.dailyexpense.data.Category
+import com.wwdablu.dailyexpense.data.TypeKind
+import androidx.compose.material3.FilterChip
 
 /** Lists expense types with edit and remove actions. Adding is via the screen's FAB. */
 @Composable
@@ -57,7 +59,7 @@ fun CategoriesScreen(
     if (categories.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(contentPadding), contentAlignment = Alignment.Center) {
             Text(
-                "No expense types.\nTap + to add one.",
+                "No types.\nTap + to add one.",
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -74,15 +76,35 @@ fun CategoriesScreen(
                 Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     CategoryBadge(c.name, c.icon, c.color, 40.dp)
                     Spacer(Modifier.width(12.dp))
-                    Text(c.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    Column(Modifier.weight(1f)) {
+                        Text(c.name, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            kindDescription(c.typeKind),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     IconButton(onClick = { onEdit(c) }) { Icon(Icons.Filled.Edit, "Edit ${c.name}") }
-                    IconButton(onClick = { onDelete(c) }) {
-                        Icon(Icons.Filled.Delete, "Remove ${c.name}", tint = MaterialTheme.colorScheme.error)
+                    // The built-in refund type can't be removed: refunds (and bank SMS refunds) need it.
+                    if (c.typeKind != TypeKind.Refund) {
+                        IconButton(onClick = { onDelete(c) }) {
+                            Icon(Icons.Filled.Delete, "Remove ${c.name}", tint = MaterialTheme.colorScheme.error)
+                        }
+                    } else {
+                        Spacer(Modifier.size(48.dp))
                     }
                 }
             }
         }
     }
+}
+
+/** Short line under a type's name saying what it is used for. */
+fun kindDescription(kind: TypeKind) = when (kind) {
+    TypeKind.Expense -> "Expense"
+    TypeKind.Earning -> "Earning"
+    TypeKind.Both -> "Expense or earning"
+    TypeKind.Refund -> "Refund · lowers spending"
 }
 
 /**
@@ -102,6 +124,7 @@ fun CategoryDialog(
     var pickedKey by rememberSaveable { mutableStateOf(existing?.let { iconFor(it.icon, it.name)?.key }) }
     // Circle colour: the type's current colour, replaced by the icon's colour when one is picked.
     var color by rememberSaveable { mutableStateOf(existing?.color) }
+    var kind by rememberSaveable { mutableStateOf(existing?.typeKind ?: TypeKind.Expense) }
 
     val shown: TypeIcon = TYPE_ICONS.firstOrNull { it.key == pickedKey }
         ?: suggestIconForName(name)
@@ -110,7 +133,7 @@ fun CategoryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (existing == null) "Add expense type" else "Modify expense type") },
+        title = { Text(if (existing == null) "Add type" else "Modify type") },
         text = {
             Column(
                 Modifier.verticalScroll(rememberScrollState()),
@@ -125,6 +148,26 @@ fun CategoryDialog(
                     isError = error != null,
                     supportingText = error?.let { { Text(it) } },
                     modifier = Modifier.fillMaxWidth(),
+                )
+                Text("Used for", style = MaterialTheme.typography.labelLarge)
+                // Refund is a built-in kind: it can't be picked for other types, and the
+                // refund type itself can't be changed to another kind.
+                if (kind != TypeKind.Refund) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(TypeKind.Expense, TypeKind.Earning, TypeKind.Both).forEach { k ->
+                            FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(k.label) })
+                        }
+                    }
+                }
+                Text(
+                    when (kind) {
+                        TypeKind.Expense -> "Shown when adding an expense."
+                        TypeKind.Earning -> "Shown when adding an earning."
+                        TypeKind.Both -> "Shown when adding an expense or an earning."
+                        TypeKind.Refund -> "Built-in refund type. Shown when adding an expense; its entries lower your spending."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text("Icon: ${shown.label}", style = MaterialTheme.typography.labelLarge)
                 FlowRow(
@@ -160,7 +203,7 @@ fun CategoryDialog(
             TextButton(onClick = {
                 onSave(
                     (existing ?: Category(name = "", color = shownColor))
-                        .copy(name = name, color = shownColor, icon = shown.key)
+                        .copy(name = name, color = shownColor, icon = shown.key, kind = kind.ordinal)
                 )
             }) { Text("Save") }
         },
@@ -175,8 +218,8 @@ fun DeleteCategoryDialog(category: Category, expenseCount: Int, onConfirm: () ->
         title = { Text("Remove \"${category.name}\"?") },
         text = {
             Text(
-                if (expenseCount == 0) "This expense type isn't used by any expenses."
-                else "$expenseCount expense(s) use this type. They will be kept and shown as \"Uncategorized\"."
+                if (expenseCount == 0) "This type isn't used by any entries."
+                else "$expenseCount entries use this type. They will be kept and shown as \"Uncategorized\"."
             )
         },
         confirmButton = {

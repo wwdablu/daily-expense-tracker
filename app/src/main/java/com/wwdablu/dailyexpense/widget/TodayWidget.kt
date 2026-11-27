@@ -62,7 +62,7 @@ class TodayWidget : AppWidgetProvider() {
             val epochDay = today.toEpochDay()
             val totals = ExpenseRepository(AppDatabase.get(context)).observePeriodTotals(epochDay, epochDay).first()
             val budget = AppSettings.get(context).budget.value
-            val spent = totals.expense
+            val spent = totals.expense.coerceAtLeast(0)  // refunds never take it below ₹0
 
             val views = RemoteViews(context.packageName, R.layout.widget_today)
             views.setTextViewText(R.id.widget_spent, formatMoney(spent))

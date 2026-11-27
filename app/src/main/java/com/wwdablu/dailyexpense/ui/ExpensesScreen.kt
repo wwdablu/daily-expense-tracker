@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.wwdablu.dailyexpense.data.Category
 import com.wwdablu.dailyexpense.data.Expense
+import com.wwdablu.dailyexpense.data.TypeKind
 import com.wwdablu.dailyexpense.data.ExpenseWithCategory
 import com.wwdablu.dailyexpense.data.PendingEntry
 import androidx.compose.material.icons.filled.Sms
@@ -102,7 +103,8 @@ fun ExpensesScreen(
             IconButton(onClick = onNextDay) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next day") }
         }
 
-        val spent = expenses.filterNot { it.expense.isIncome }.sumOf { it.expense.amountMinor }
+        // Refunds lower the day's spending, but never below ₹0.
+        val spent = expenses.filterNot { it.expense.isIncome }.sumOf { it.expense.amountMinor }.coerceAtLeast(0)
         val earned = expenses.filter { it.expense.isIncome }.sumOf { it.expense.amountMinor }
         Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             Column(Modifier.padding(16.dp)) {
@@ -216,7 +218,7 @@ private fun ExpenseRow(item: ExpenseWithCategory, onClick: () -> Unit) {
             Text(
                 signedMoney(item.expense),
                 style = MaterialTheme.typography.titleMedium,
-                color = if (item.expense.isIncome) IncomeGreen else MaterialTheme.colorScheme.onSurface,
+                color = if (item.expense.isIncome || item.expense.amountMinor < 0) IncomeGreen else MaterialTheme.colorScheme.onSurface,
             )
         }
     }
@@ -226,7 +228,9 @@ private fun ExpenseRow(item: ExpenseWithCategory, onClick: () -> Unit) {
 val IncomeGreen: Color
     @Composable get() = if (isSystemInDarkTheme()) Color(0xFF81C784) else Color(0xFF2E7D32)
 
-fun signedMoney(e: Expense) = (if (e.isIncome) "+ " else "− ") + formatMoney(e.amountMinor)
+/** "+ ₹500" for earnings and refunds (negative expenses), "− ₹500" for spending. */
+fun signedMoney(e: Expense) =
+    (if (e.isIncome || e.amountMinor < 0) "+ " else "− ") + formatMoney(kotlin.math.abs(e.amountMinor))
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -262,13 +266,22 @@ fun ExpenseDialog(
     onDismiss: () -> Unit,
 ) {
     val base = existing?.expense ?: draft
-    var amount by rememberSaveable { mutableStateOf(base?.let { minorToInput(it.amountMinor) } ?: "") }
+    // Refunds are stored as negative expenses; the user always types a positive amount.
+    var amount by rememberSaveable { mutableStateOf(base?.let { minorToInput(kotlin.math.abs(it.amountMinor)) } ?: "") }
     var note by rememberSaveable { mutableStateOf(base?.note ?: "") }
-    // A draft with no guessed type falls back to the first type, like a blank new entry.
-    var categoryId by rememberSaveable {
-        mutableStateOf(if (existing != null) base?.categoryId else base?.categoryId ?: categories.firstOrNull()?.id)
-    }
     var isIncome by rememberSaveable { mutableStateOf(base?.isIncome ?: false) }
+    /** Types offered for the current mode. An entry being edited keeps its type even if it doesn't match. */
+    fun typesFor(income: Boolean) = categories.filter { it.typeKind.allows(income) || (existing != null && it.id == base?.categoryId) }
+    // A new entry (or a draft with no guessed type) starts on the first type for its mode.
+    var categoryId by rememberSaveable {
+        mutableStateOf(if (existing != null) base?.categoryId else base?.categoryId ?: typesFor(base?.isIncome ?: false).firstOrNull()?.id)
+    }
+    /** Switching Expense/Earning: keep the type if it fits the new mode, otherwise pick the first that does. */
+    fun switchMode(income: Boolean) {
+        isIncome = income
+        val types = typesFor(income)
+        if (types.none { it.id == categoryId }) categoryId = types.firstOrNull()?.id
+    }
     var epochDay by rememberSaveable { mutableStateOf(base?.epochDay ?: defaultDay.toEpochDay()) }
     var menuOpen by remember { mutableStateOf(false) }
     var showPicker by remember { mutableStateOf(false) }
@@ -277,6 +290,11 @@ fun ExpenseDialog(
 
     val parsed = parseMoney(amount)
     val selected = categories.firstOrNull { it.id == categoryId }
+    // A refund whose type was since removed stays a refund while it is left uncategorized.
+    val isRefund = !isIncome && (
+        selected?.typeKind == TypeKind.Refund ||
+            (selected == null && categoryId == base?.categoryId && (base?.amountMinor ?: 0) < 0)
+        )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -286,12 +304,12 @@ fun ExpenseDialog(
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     SegmentedButton(
                         selected = !isIncome,
-                        onClick = { isIncome = false },
+                        onClick = { switchMode(false) },
                         shape = SegmentedButtonDefaults.itemShape(0, 2),
                     ) { Text("Expense") }
                     SegmentedButton(
                         selected = isIncome,
-                        onClick = { isIncome = true },
+                        onClick = { switchMode(true) },
                         shape = SegmentedButtonDefaults.itemShape(1, 2),
                     ) { Text("Earning") }
                 }
@@ -301,9 +319,11 @@ fun ExpenseDialog(
                     label = { Text("Amount (₹)") },
                     singleLine = true,
                     isError = triedSave && parsed == null,
-                    supportingText = if (triedSave && parsed == null) {
-                        { Text("Enter a positive amount (max 2 decimals)") }
-                    } else null,
+                    supportingText = when {
+                        triedSave && parsed == null -> { { Text("Enter a positive amount (max 2 decimals)") } }
+                        isRefund -> { { Text("A refund lowers your spending") } }
+                        else -> null
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -318,7 +338,7 @@ fun ExpenseDialog(
                         modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                     )
                     ExposedDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        categories.forEach { c ->
+                        typesFor(isIncome).forEach { c ->
                             DropdownMenuItem(
                                 text = { Text(c.name) },
                                 leadingIcon = { CategoryBadge(c.name, c.icon, c.color, 28.dp) },
@@ -352,7 +372,7 @@ fun ExpenseDialog(
                 if (parsed != null) {
                     val e = (base ?: Expense(amountMinor = 0, categoryId = null, note = "", epochDay = epochDay))
                         .copy(
-                            amountMinor = parsed,
+                            amountMinor = if (isRefund) -parsed else parsed,
                             categoryId = categoryId,
                             note = note.trim(),
                             epochDay = epochDay,
@@ -376,7 +396,7 @@ fun ExpenseDialog(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this entry?") },
-            text = { Text("${formatMoney(base.amountMinor)} will be removed.") },
+            text = { Text("${formatMoney(kotlin.math.abs(base.amountMinor))} will be removed.") },
             confirmButton = {
                 TextButton(onClick = { onDelete(base) }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },

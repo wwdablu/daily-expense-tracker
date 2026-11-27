@@ -12,6 +12,10 @@ import androidx.compose.material.icons.filled.Backpack
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Percent
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.CurrencyExchange
@@ -81,6 +85,10 @@ val TYPE_ICONS: List<TypeIcon> = listOf(
     TypeIcon("pets", "Pets", Icons.Filled.Pets, 0xFFA1887F),
     TypeIcon("salary", "Salary", Icons.Filled.Payments, 0xFF4FC3F7),
     TypeIcon("refund", "Refunds", Icons.Filled.CurrencyExchange, 0xFF4DB6AC),
+    TypeIcon("lottery", "Lottery", Icons.Filled.Casino, 0xFFFFCA28),
+    TypeIcon("sales", "Sales", Icons.Filled.Sell, 0xFF26A69A),
+    TypeIcon("interest", "Interest", Icons.Filled.Percent, 0xFF66BB6A),
+    TypeIcon("bonus", "Bonus", Icons.Filled.EmojiEvents, 0xFF4FC3F7),
     TypeIcon("investment", "Investment", Icons.AutoMirrored.Filled.TrendingUp, 0xFF66BB6A),
     TypeIcon("savings", "Savings", Icons.Filled.Savings, 0xFFF48FB1),
     // Generic icons for anything else
@@ -122,9 +130,13 @@ private val NAME_HINTS: List<Pair<List<String>, String>> = listOf(
     listOf("office", "work", "business") to "office",
     listOf("gift", "gifts", "donation", "charity") to "gift",
     listOf("pets", "pet") to "pets",
-    listOf("salary", "income", "wages", "bonus", "freelance") to "salary",
+    listOf("salary", "income", "wages", "freelance") to "salary",
+    listOf("lottery", "lotto", "jackpot", "prize", "winnings") to "lottery",
+    listOf("sales", "sale", "sold", "selling") to "sales",
+    listOf("interest") to "interest",
+    listOf("bonus", "incentive", "reward", "rewards") to "bonus",
     listOf("refund", "refunds", "cashback", "reimbursement") to "refund",
-    listOf("investment", "investments", "stocks", "mutual funds", "dividend", "interest") to "investment",
+    listOf("investment", "investments", "stocks", "mutual funds", "dividend") to "investment",
     listOf("savings", "saving") to "savings",
     listOf("other", "others", "misc", "miscellaneous") to "other",
 )

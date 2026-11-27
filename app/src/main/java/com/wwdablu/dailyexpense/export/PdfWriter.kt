@@ -142,9 +142,12 @@ class PdfWriter private constructor(private val report: Report, private val tota
         rows.forEach { t ->
             if (y + 16f > bottomLimit) { newPage(); headerRow(cols) }
             text(fit(t.categoryName ?: "Uncategorized", 300f, bodyPaint), margin + 6f, bodyPaint)
-            textRight(formatMoney(t.total), 420f, bodyPaint)
-            val pct = if (total == 0L) 0.0 else t.total * 100.0 / total
-            textRight("%.1f%%".format(pct), contentRight - 6f, bodyPaint)
+            textRight(signed(t.total), 420f, if (t.total < 0) greenPaint else bodyPaint)
+            // Refunds (negative rows) lower spending and have no share of it.
+            if (t.total >= 0) {
+                val pct = if (total == 0L) 0.0 else t.total * 100.0 / total
+                textRight("%.1f%%".format(pct), contentRight - 6f, bodyPaint)
+            }
             y += 16f
             rowDivider()
         }
@@ -174,8 +177,9 @@ class PdfWriter private constructor(private val report: Report, private val tota
             text(LocalDate.ofEpochDay(e.epochDay).format(Report.ENTRY_DATE), dateX, bodyPaint)
             text(fit(item.categoryName ?: "Uncategorized", noteX - typeX - 8f, bodyPaint), typeX, bodyPaint)
             text(fit(e.note, 200f, bodyPaint), noteX, bodyPaint)
-            val amount = (if (e.isIncome) "+ " else "− ") + formatMoney(e.amountMinor)
-            textRight(amount, amountRight, if (e.isIncome) greenPaint else bodyPaint)
+            val back = e.isIncome || e.amountMinor < 0  // earnings and refunds
+            val amount = (if (back) "+ " else "− ") + formatMoney(kotlin.math.abs(e.amountMinor))
+            textRight(amount, amountRight, if (back) greenPaint else bodyPaint)
             y += 16f
             rowDivider()
         }

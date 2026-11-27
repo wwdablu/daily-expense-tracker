@@ -19,11 +19,34 @@ data class Category(
     val color: Long,
     /** Key of the chosen icon (see TYPE_ICONS). null = pick one from the name. */
     val icon: String? = null,
-)
+    /** Which entries can use this type; see [TypeKind]. Stored as its ordinal. */
+    @ColumnInfo(defaultValue = "0") val kind: Int = TypeKind.Expense.ordinal,
+) {
+    val typeKind: TypeKind get() = TypeKind.entries.getOrElse(kind) { TypeKind.Expense }
+}
+
+/**
+ * What a type is used for. Never reorder: the ordinal is stored in the database.
+ * A [Refund] type is offered when adding an expense; its entries are saved as negative
+ * expenses, so they lower the amount spent instead of counting as earnings.
+ */
+enum class TypeKind(val label: String) {
+    Expense("Expense"),
+    Earning("Earning"),
+    Both("Both"),
+    Refund("Refund");
+
+    /** Whether the type shows in the add-entry dropdown for this mode. */
+    fun allows(isIncome: Boolean): Boolean = when (this) {
+        Expense, Refund -> !isIncome
+        Earning -> isIncome
+        Both -> true
+    }
+}
 
 /**
  * A single expense. [amountMinor] is stored in minor units (cents/paise) to avoid
- * floating-point rounding errors. [epochDay] is LocalDate.toEpochDay().
+ * floating-point rounding errors. A refund is an expense with a negative amount. [epochDay] is LocalDate.toEpochDay().
  * If the category is removed, existing expenses are kept and become "Uncategorized".
  */
 @Entity(

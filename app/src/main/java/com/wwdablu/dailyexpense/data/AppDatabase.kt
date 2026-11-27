@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Category::class, Expense::class, PendingEntry::class], version = 5, exportSchema = true)
+@Database(entities = [Category::class, Expense::class, PendingEntry::class], version = 6, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun expenseDao(): ExpenseDao
@@ -29,6 +29,24 @@ abstract class AppDatabase : RoomDatabase() {
             "Telephone" to 0xFFA1887F,
         )
 
+        /** Earning types added in v6. */
+        private val ADDED_IN_V6 = listOf(
+            "Lottery" to 0xFFFFCA28,
+            "Sales" to 0xFF26A69A,
+            "Interest" to 0xFF66BB6A,
+            "Bonus" to 0xFF4FC3F7,
+        )
+
+        /** What each starter type is used for. Types not listed are expense types. */
+        private val STARTER_KINDS = mapOf(
+            "Salary" to TypeKind.Earning,
+            "Gifts" to TypeKind.Both,
+            "Refunds" to TypeKind.Refund,
+            "Other" to TypeKind.Both,
+        ) + ADDED_IN_V6.associate { it.first to TypeKind.Earning }
+
+        private fun kindOf(name: String) = (STARTER_KINDS[name] ?: TypeKind.Expense).ordinal
+
         val DEFAULT_CATEGORIES = listOf(
             "Food" to 0xFFE57373,
             "Transport" to 0xFF64B5F6,
@@ -38,7 +56,7 @@ abstract class AppDatabase : RoomDatabase() {
             "Health" to 0xFF81C784,
             "Salary" to 0xFF4FC3F7,
             "Other" to 0xFF90A4AE,
-        ) + ADDED_IN_V3
+        ) + ADDED_IN_V3 + ADDED_IN_V6
 
         /** v1 -> v2: entries can be an earning or an expense. Existing rows stay expenses. */
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -81,14 +99,46 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v5 -> v6: each type says whether it is for expenses, earnings, both, or refunds.
+         * The user's own types get a kind from how they have been used. Refund entries
+         * become negative expenses, and the new earning types are added.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE categories ADD COLUMN kind INTEGER NOT NULL DEFAULT 0")
+                val usedForIncome = "SELECT categoryId FROM expenses WHERE isIncome = 1 AND categoryId IS NOT NULL"
+                val usedForExpense = "SELECT categoryId FROM expenses WHERE isIncome = 0 AND categoryId IS NOT NULL"
+                db.execSQL("UPDATE categories SET kind = ${TypeKind.Both.ordinal} WHERE id IN ($usedForIncome) AND id IN ($usedForExpense)")
+                db.execSQL("UPDATE categories SET kind = ${TypeKind.Earning.ordinal} WHERE id IN ($usedForIncome) AND id NOT IN ($usedForExpense)")
+                STARTER_KINDS.forEach { (name, kind) ->
+                    db.execSQL("UPDATE categories SET kind = ? WHERE name = ? COLLATE NOCASE", arrayOf<Any>(kind.ordinal, name))
+                }
+                db.execSQL(
+                    "UPDATE expenses SET isIncome = 0, amountMinor = -ABS(amountMinor) " +
+                        "WHERE categoryId IN (SELECT id FROM categories WHERE kind = ${TypeKind.Refund.ordinal})"
+                )
+                ADDED_IN_V6.forEach { (name, color) ->
+                    db.execSQL(
+                        "INSERT INTO categories (name, color, kind) SELECT ?, ?, ? " +
+                            "WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = ? COLLATE NOCASE)",
+                        arrayOf<Any>(name, color, TypeKind.Earning.ordinal, name),
+                    )
+                }
+            }
+        }
+
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "expenses.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         // Seed a few starter types on first launch.
                         DEFAULT_CATEGORIES.forEach { (name, color) ->
-                            db.execSQL("INSERT INTO categories (name, color) VALUES (?, ?)", arrayOf<Any>(name, color))
+                            db.execSQL(
+                                "INSERT INTO categories (name, color, kind) VALUES (?, ?, ?)",
+                                arrayOf<Any>(name, color, kindOf(name)),
+                            )
                         }
                     }
                 })

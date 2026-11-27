@@ -66,7 +66,7 @@ object DailyReminder {
         val text = if (totals.expense == 0L && totals.income == 0L) {
             "Did you spend anything today? Tap to log it."
         } else {
-            "You've logged ${formatMoney(totals.expense)} spent today. Anything else to add?"
+            "You've logged ${formatMoney(totals.expense.coerceAtLeast(0))} spent today. Anything else to add?"
         }
         val notification = NotificationCompat.Builder(context, Notifications.CHANNEL_REMINDER)
             .setSmallIcon(R.drawable.ic_stat_wallet)

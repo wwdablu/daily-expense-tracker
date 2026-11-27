@@ -181,15 +181,22 @@ fun SummaryScreen(
                     CategoryBadge(t.categoryName, t.categoryIcon, t.categoryColor, 32.dp)
                     Spacer(Modifier.width(10.dp))
                     Text(t.categoryName ?: "Uncategorized", Modifier.weight(1f))
-                    Text("${formatMoney(t.total)}  ·  ${(fraction * 100).toInt()}%")
+                    if (t.total < 0) {
+                        // Refunds lower spending, so they have no share of it.
+                        Text("+ ${formatMoney(-t.total)} back", color = IncomeGreen)
+                    } else {
+                        Text("${formatMoney(t.total)}  ·  ${(fraction * 100).toInt()}%")
+                    }
                 }
-                Spacer(Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { fraction },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color(t.categoryColor ?: 0xFFBDBDBD),
-                    drawStopIndicator = {},
-                )
+                if (t.total >= 0) {
+                    Spacer(Modifier.height(6.dp))
+                    LinearProgressIndicator(
+                        progress = { fraction.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color(t.categoryColor ?: 0xFFBDBDBD),
+                        drawStopIndicator = {},
+                    )
+                }
             }
         }
     }

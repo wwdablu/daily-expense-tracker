@@ -86,7 +86,9 @@ object InsightsCalculator {
         // 2. Types that changed the most
         if (i.prevSpent > 0) {
             val prev = i.prevByType.associateBy { it.categoryId }
-            val keys = (i.byType.map { it.categoryId } + i.prevByType.map { it.categoryId }).distinct()
+            // Refund types (negative totals) lower spending; a rise or drop in them isn't spending.
+            val refundIds = (i.byType + i.prevByType).filter { it.total < 0 }.map { it.categoryId }.toSet()
+            val keys = (i.byType.map { it.categoryId } + i.prevByType.map { it.categoryId }).distinct() - refundIds
             val diffs = keys.map { id ->
                 val now = i.byType.firstOrNull { it.categoryId == id }
                 val before = prev[id]

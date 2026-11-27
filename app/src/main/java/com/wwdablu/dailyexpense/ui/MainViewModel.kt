@@ -12,6 +12,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wwdablu.dailyexpense.data.AppDatabase
 import com.wwdablu.dailyexpense.data.Category
+import com.wwdablu.dailyexpense.data.TypeKind
 import com.wwdablu.dailyexpense.data.CategoryTotal
 import com.wwdablu.dailyexpense.data.Expense
 import com.wwdablu.dailyexpense.data.ExpenseRepository
@@ -118,15 +119,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** A new entry pre-filled from a detected SMS, with the type guessed from the merchant. */
     fun draftFrom(p: PendingEntry): Expense {
+        val types = categories.value
         val guess = TypeGuess.typeName(p.merchant.orEmpty())
-        val category = categories.value.firstOrNull { it.name.equals(guess, ignoreCase = true) }
-        return Expense(
-            amountMinor = p.amountMinor,
-            categoryId = category?.id,
-            note = p.merchant.orEmpty(),
-            epochDay = p.epochDay,
-            isIncome = p.isIncome,
-        )
+            ?.let { name -> types.firstOrNull { it.name.equals(name, ignoreCase = true) } }
+        val refunds = types.firstOrNull { it.typeKind == TypeKind.Refund }
+        // Money back from a shop (e.g. a credit from Amazon) or a refund/cashback is a refund:
+        // it is added as an expense under the refund type, which lowers spending.
+        val asRefund = p.isIncome && refunds != null &&
+            (guess?.typeKind == TypeKind.Refund || guess?.typeKind == TypeKind.Expense)
+        return when {
+            asRefund -> Expense(amountMinor = p.amountMinor, categoryId = refunds!!.id, note = p.merchant.orEmpty(), epochDay = p.epochDay, isIncome = false)
+            else -> Expense(
+                amountMinor = p.amountMinor,
+                // Drop a guess that doesn't fit (the dialog then picks the first type for the mode).
+                categoryId = guess?.takeIf { it.typeKind.allows(p.isIncome) }?.id,
+                note = p.merchant.orEmpty(),
+                epochDay = p.epochDay,
+                isIncome = p.isIncome,
+            )
+        }
     }
 
     val smsDetection: StateFlow<Boolean> = settings.smsDetection

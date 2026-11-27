@@ -21,7 +21,7 @@ object CsvWriter {
         report.entries.forEach { item ->
             val e = item.expense
             sb.append(LocalDate.ofEpochDay(e.epochDay).format(DATE)).append(',')
-                .append(if (e.isIncome) "Earning" else "Expense").append(',')
+                .append(if (e.isIncome) "Earning" else if (e.amountMinor < 0) "Refund" else "Expense").append(',')
                 .append(field(item.categoryName ?: "Uncategorized")).append(',')
                 .append(field(e.note)).append(',')
                 .append(BigDecimal.valueOf(e.amountMinor, 2).toPlainString())

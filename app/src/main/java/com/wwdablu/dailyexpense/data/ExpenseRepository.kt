@@ -17,13 +17,23 @@ class ExpenseRepository(private val db: AppDatabase) {
         val name = category.name.trim()
         if (name.isEmpty()) return "Name can't be empty"
         if (categories.countWithName(name, category.id) > 0) return "\"$name\" already exists"
-        val clean = category.copy(name = name)
+        // Only the built-in refund type may be a refund type; it also stays one.
+        val existingKind = if (category.id == 0L) null else categories.kindOf(category.id)
+        val kind = when {
+            existingKind == TypeKind.Refund.ordinal -> TypeKind.Refund.ordinal
+            category.typeKind == TypeKind.Refund -> TypeKind.Expense.ordinal
+            else -> category.kind
+        }
+        val clean = category.copy(name = name, kind = kind)
         if (clean.id == 0L) categories.insert(clean) else categories.update(clean)
         return null
     }
 
     suspend fun expenseCountFor(category: Category) = categories.expenseCount(category.id)
-    suspend fun deleteCategory(category: Category) = categories.delete(category)
+    /** The built-in refund type is never removed. */
+    suspend fun deleteCategory(category: Category) {
+        if (category.typeKind != TypeKind.Refund) categories.delete(category)
+    }
 
     suspend fun saveExpense(expense: Expense) {
         if (expense.id == 0L) expenses.insert(expense) else expenses.update(expense)

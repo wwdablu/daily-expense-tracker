@@ -17,6 +17,9 @@ interface CategoryDao {
     @Query("SELECT COUNT(*) FROM categories WHERE name = :name COLLATE NOCASE AND id != :excludeId")
     suspend fun countWithName(name: String, excludeId: Long): Int
 
+    @Query("SELECT kind FROM categories WHERE id = :id")
+    suspend fun kindOf(id: Long): Int?
+
     @Query("SELECT COUNT(*) FROM expenses WHERE categoryId = :categoryId")
     suspend fun expenseCount(categoryId: Long): Int
 
