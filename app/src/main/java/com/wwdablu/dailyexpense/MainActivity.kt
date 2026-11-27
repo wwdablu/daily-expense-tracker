@@ -18,6 +18,8 @@ import com.wwdablu.dailyexpense.notify.AppIntents
 import com.wwdablu.dailyexpense.notify.Notifications
 import com.wwdablu.dailyexpense.reminder.DailyReminder
 import com.wwdablu.dailyexpense.ui.SettingsScreen
+import com.wwdablu.dailyexpense.ui.AboutScreen
+import androidx.compose.material.icons.outlined.Info
 import com.wwdablu.dailyexpense.ui.DownloadDialog
 import com.wwdablu.dailyexpense.ui.monthFormatter
 import com.wwdablu.dailyexpense.ui.SectionTitle
@@ -189,12 +191,14 @@ fun App(
     val saveCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(CSV_MIME_TYPE)) { onFileChosen(it, csv = true) }
 
     var showSettings by rememberSaveable { mutableStateOf(false) }
-    BackHandler(enabled = showSettings) { showSettings = false }
+    var showAbout by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = showSettings || showAbout) { showSettings = false; showAbout = false }
 
     // Opened from a notification or the widget's "+": go to today's expenses and start a new entry.
     LaunchedEffect(launchAction) {
         if (launchAction == AppIntents.ACTION_ADD) {
             showSettings = false
+            showAbout = false
             tab = 0
             vm.selectDay(java.time.LocalDate.now())
             expenseEdit = ExpenseEdit.New
@@ -245,16 +249,16 @@ fun App(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (showSettings) "Settings" else current.title) },
+                title = { Text(if (showSettings) "Settings" else if (showAbout) "About" else current.title) },
                 navigationIcon = {
-                    if (showSettings) {
-                        IconButton(onClick = { showSettings = false }) {
+                    if (showSettings || showAbout) {
+                        IconButton(onClick = { showSettings = false; showAbout = false }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                         }
                     }
                 },
                 actions = {
-                    if (!showSettings && current == Tab.Summary) {
+                    if (!showSettings && !showAbout && current == Tab.Summary) {
                         IconButton(onClick = { downloadDialogOpen = true }) {
                             Icon(
                                 Icons.Filled.FileDownload,
@@ -262,7 +266,7 @@ fun App(
                             )
                         }
                     }
-                    if (!showSettings) {
+                    if (!showSettings && !showAbout) {
                         Box {
                             IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, "More options") }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -270,6 +274,11 @@ fun App(
                                     text = { Text("Settings") },
                                     leadingIcon = { Icon(Icons.Filled.Settings, null) },
                                     onClick = { menuOpen = false; showSettings = true },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("About") },
+                                    leadingIcon = { Icon(Icons.Outlined.Info, null) },
+                                    onClick = { menuOpen = false; showAbout = true },
                                 )
                             }
                         }
@@ -279,7 +288,7 @@ fun App(
         },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
-            if (!showSettings && current != Tab.Summary) {
+            if (!showSettings && !showAbout && current != Tab.Summary) {
                 FloatingActionButton(onClick = {
                     if (current == Tab.Expenses) expenseEdit = ExpenseEdit.New
                     else { editingCategory = null; categoryError = null; categoryDialogOpen = true }
@@ -287,14 +296,16 @@ fun App(
             }
         },
         bottomBar = {
-            if (!showSettings) NavigationBar {
+            if (!showSettings && !showAbout) NavigationBar {
                 NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.AutoMirrored.Filled.ReceiptLong, null) }, label = { Text("Expenses") })
                 NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Filled.PieChart, null) }, label = { Text("Summary") })
                 NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Filled.Category, null) }, label = { Text("Types") })
             }
         },
     ) { padding ->
-        if (showSettings) {
+        if (showAbout) {
+            AboutScreen(contentPadding = padding)
+        } else if (showSettings) {
             SettingsScreen(
                 reminderEnabled = reminderEnabled,
                 reminderMinutes = reminderMinutes,
